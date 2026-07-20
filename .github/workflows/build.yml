@@ -51,7 +51,7 @@ jobs:
         with:
           node-version: "24"
           cache: "npm"
-          cache-dependency-path: "web/package-lock.json"
+          cache-dependency-path: "package-lock.json"
 
       - name: Install Dependencies
         run: npm ci
@@ -117,24 +117,19 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             type=raw,value=develop,enable=${{ github.ref == 'refs/heads/develop' }}
 
-      - name: Build and Push (production)
+      - name: Build and Push
         id: push
         uses: docker/build-push-action@v7
         with:
           context: ./web
-          file: ./web/Dockerfile
           push: true
-          # platforms: linux/amd64,linux/arm64
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # cache-from: type=gha,scope=spotteur
-          # cache-to: type=gha,scope=spotteur,mode=max
           cache-from: |
             type=gha,scope=spotteur-${{ github.ref_name }}
             type=gha,scope=spotteur-main
           cache-to: type=gha,scope=spotteur-${{ github.ref_name }},mode=max
-
 
       - name: Generate artifact attestation
         uses: actions/attest@v4
