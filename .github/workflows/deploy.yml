@@ -12,7 +12,7 @@ on:
           - staging
           - production
       target_version:
-        description: "Target version (required for production)"
+        description: "Target version (only for production)"
         required: false
         default: ""
         type: string
