@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       target_environment:
-        description: "Specify the target environment to deploy"
+        description: "Target environment"
         required: true
         default: "staging"
         type: choice
@@ -12,9 +12,9 @@ on:
           - staging
           - production
       target_version:
-        description: "Specify the image tag to deploy for production"
-        required: false
-        default: "latest"
+        description: "Image tag (required for production)"
+        required: true
+        default: ""
         type: string
   workflow_run:
     workflows:
