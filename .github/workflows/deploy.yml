@@ -12,8 +12,8 @@ on:
           - staging
           - production
       target_version:
-        description: "Image tag (required for production)"
-        required: true
+        description: "Target version (required for production)"
+        required: false
         default: ""
         type: string
   workflow_run:
