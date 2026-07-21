@@ -1,0 +1,51 @@
+version: "3"
+dotenv:
+  - .env
+silent: true
+vars:
+  DOCKER_COMPOSE_SCRIPT:
+    sh: |
+      if [ "{{.APP_ENV}}" = "development" ]; then
+        echo "docker compose -f compose.yml -f compose.devcontainer.yml -f compose.rustfs.yml -f compose.selenium.yml"
+      else
+        echo "docker compose -f compose.yml -f compose.prod.yml {{ if eq .FILESYSTEM_DISK "rustfs" }} -f compose.rustfs.yml{{ end }}{{if eq .USE_EXTERNAL_SELENIUM "false"}} -f compose.selenium.yml{{ end }}"
+      fi
+  IMAGE_TAG:
+    sh: echo "{{.IMAGE_TAG | default "latest"}}"
+  SPOTTEUR_DOCKER_IMAGE_NAMESPACE:
+    sh: echo "{{.SPOTTEUR_DOCKER_IMAGE_NAMESPACE | default "ghcr.io/spotteur"}}"
+tasks:
+  image:build:
+    cmds:
+      - 'docker build --build-arg=NPM_CONFIG_REGISTRY={{.NPM_CONFIG_REGISTRY | default "https://registry.npmjs.org"}} --target=production --tag={{.SPOTTEUR_DOCKER_IMAGE_NAMESPACE}}/spotteur:{{.IMAGE_TAG}} web'
+  up:
+    cmds:
+      # Only trigger build in development mode
+      - '{{.DOCKER_COMPOSE_SCRIPT}} up --detach{{if eq .APP_ENV "development" }} --build{{ end }} --remove-orphans'
+  down:
+    cmds:
+      - "{{.DOCKER_COMPOSE_SCRIPT}} down"
+  stop:
+    cmds:
+      - "{{.DOCKER_COMPOSE_SCRIPT}} stop"
+  cleanup:
+    cmds:
+      - "{{.DOCKER_COMPOSE_SCRIPT}} down --rmi all -v"
+  status:
+    cmds:
+      - "{{.DOCKER_COMPOSE_SCRIPT}} ps --format 'table {{\"{{.Name}}\"}}\t{{\"{{.Image}}\"}}\t{{\"{{.Status}}\"}}' --all"
+  logs:
+    cmds:
+      - "{{.DOCKER_COMPOSE_SCRIPT}} logs --follow --tail=100 {{.CLI_ARGS}}"
+  db:
+    cmds:
+      - "{{.DOCKER_COMPOSE_SCRIPT}} exec postgres-webapp psql -U {{.DB_USER}} -d {{.DB_NAME}}"
+  migrate:
+    cmds:
+      - "{{.DOCKER_COMPOSE_SCRIPT}} exec webapp task migrate"
+  ssh:
+    cmds:
+      - "{{.DOCKER_COMPOSE_SCRIPT}} exec webapp bash"
+  create-user:
+    cmds:
+      - "{{.DOCKER_COMPOSE_SCRIPT}} exec webapp task create-user"

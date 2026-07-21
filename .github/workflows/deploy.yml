@@ -1,0 +1,39 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_environment:
+        description: "Target environment"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
+      target_version:
+        description: "Target version (only for production)"
+        required: false
+        default: ""
+        type: string
+  workflow_run:
+    workflows:
+      - Docker Build
+    types:
+      - completed
+    branches:
+      - develop
+      - main
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: /opt/spotteur-scripts/deploy_v2.sh ${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }} ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_environment || github.ref }} ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_version || 'latest' }}

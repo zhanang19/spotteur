@@ -1,0 +1,17 @@
+version: '3'
+dotenv:
+  - .env
+silent: true
+tasks:
+  migrate:
+    cmds:
+      - 'npm run db:migrate'
+  migration:generate:
+    cmds:
+      - 'npm run db:generate'
+  auth:schema:generate:
+    cmds:
+      - 'npm run auth:generate-schema'
+  create-user:
+    cmds:
+      - 'npx -y tsx commands/create-user.ts'
