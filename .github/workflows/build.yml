@@ -1,13 +1,9 @@
 name: Build
 
 on:
-  workflow_dispatch: {}
   push:
-    branches:
-      - develop
-      - main
-    paths:
-      - "web/**"
+    tags:
+      - "v*"
 
 concurrency:
   group: build-${{ github.ref }}
@@ -18,68 +14,24 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  release:
-    name: Semantic Release
-    defaults:
-      run:
-        working-directory: ./web
-    runs-on: ubuntu-latest
-    outputs:
-      new_release_version: ${{ steps.semantic.outputs.new_release_version }}
-      new_release_published: ${{ steps.semantic.outputs.new_release_published }}
-    steps:
-      - name: Generate App token
-        id: app-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          client-id: ${{ secrets.BOT_CI_APP_ID }}
-          private-key: ${{ secrets.BOT_CI_APP_SECRET }}
-
-      - name: Checkout Repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          token: ${{ steps.app-token.outputs.token }}
-          fetch-depth: 0
-          persist-credentials: true
-
-      - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: "24"
-          cache: "npm"
-          cache-dependency-path: "web/package-lock.json"
-
-      - name: Install Dependencies
-        run: npm ci
-
-      - name: Release
-        id: semantic
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: |
-          set -euo pipefail
-          git config user.name "spotteur-ci-bot[bot]"
-          git config user.email "${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com"
-          OUTPUT=$(npx semantic-release 2>&1 | tee /dev/stderr)
-          VERSION=$(echo "$OUTPUT" | grep -oP 'Published release \K[0-9]+\.[0-9]+\.[0-9]+[^\s]*' || true)
-          if [ -n "$VERSION" ]; then
-            echo "new_release_published=true" >> $GITHUB_OUTPUT
-            echo "new_release_version=$VERSION" >> $GITHUB_OUTPUT
-          else
-            echo "new_release_published=false" >> $GITHUB_OUTPUT
-          fi
   build:
     name: Build and Push Docker Image
     needs: release
-    if: needs.release.outputs.new_release_published == 'true'
     permissions:
       contents: read
       packages: write
       attestations: write
       id-token: write
       artifact-metadata: write
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
     steps:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -102,11 +54,11 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=semver,pattern={{version}},value=${{ needs.release.outputs.new_release_version }},enable=true
-            type=semver,pattern={{major}}.{{minor}},value=${{ needs.release.outputs.new_release_version }},enable=${{ github.ref == 'refs/heads/main' }}
-            type=semver,pattern={{major}},value=${{ needs.release.outputs.new_release_version }},enable=${{ github.ref == 'refs/heads/main' }}
+            type=semver,pattern={{version}},value=${{ github.ref_name }},enable=true
+            type=semver,pattern={{major}}.{{minor}},value=${{ github.ref_name }},enable=${{ !contains(github.ref_name, '-') }}
+            type=semver,pattern={{major}},value=${{ github.ref_name }},enable=${{ !contains(github.ref_name, '-') }}
             type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=develop,enable=${{ github.ref == 'refs/heads/develop' }}
+            type=raw,value=develop,enable=${{ contains(github.ref_name, 'nightly') }}
 
       - name: Build and Push
         id: push
@@ -114,14 +66,12 @@ jobs:
         with:
           context: ./web
           push: true
-          platforms: linux/amd64
+          platforms: ${{ matrix.platform }}
           tags: ${{ steps.meta.outputs.tags }}
           annotations: ${{ steps.meta.outputs.annotations }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: |
-            type=gha,scope=spotteur-${{ github.ref_name }}
-            type=gha,scope=spotteur-main
-          cache-to: type=gha,scope=spotteur-${{ github.ref_name }},mode=max
+          cache-from: type=gha,scope=spotteur
+          cache-to: type=gha,scope=spotteur,mode=max
 
       - name: Generate artifact attestation
         uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.2.0
