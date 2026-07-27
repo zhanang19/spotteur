@@ -16,7 +16,6 @@ env:
 jobs:
   build:
     name: Build and Push Docker Image
-    needs: release
     permissions:
       contents: read
       packages: write
