@@ -20,9 +20,6 @@ on:
       - Build
     types:
       - completed
-    branches:
-      - develop
-      - main
 
 jobs:
   deploy:
@@ -34,10 +31,9 @@ jobs:
         env:
           UNIQUE_ID: ${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
           TARGET_ENVIRONMENT: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_environment || github.ref }}
-          TARGET_VERSION: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_version || 'latest' }}
+          TARGET_VERSION: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_version || github.ref_name }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           script: /opt/spotteur-scripts/deploy_v2.sh ${{ env.UNIQUE_ID }} ${{ env.TARGET_ENVIRONMENT }} ${{ env.TARGET_VERSION }}
-
